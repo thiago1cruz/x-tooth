@@ -1,0 +1,13 @@
+# Dataset — não redistribuir (baixado via kagglehub a partir do Kaggle)
+Periapical_Xrays/
+*.zip
+
+# Resultados pesados (anexar zips nas Releases do GitHub, se necessário)
+results/
+*.pth
+
+# Python / Colab
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
