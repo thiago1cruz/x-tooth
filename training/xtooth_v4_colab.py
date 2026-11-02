@@ -70,7 +70,7 @@ import traceback
 
 # ------------------------------- CONFIGURAÇÃO --------------------------------
 CONFIG = {
-    "version": "4.3.0",
+    "version": "4.4.0",
     "seed": 42,
     "final_seeds": [42, 43, 44],  # sementes do treino final (média ± dp)
     "focal_gamma": 2.0,
@@ -86,6 +86,7 @@ CONFIG = {
     "early_stopping_patience": 7,
     "selection_metric": "macro_f1", # métrica de seleção de modelos
     "optuna_trials": 15,            # nº de trials do HPO (Etapa 5)
+    "hpo_folds": 3,                 # CV interna por trial do HPO
     "models": ["resnet50", "efficientnet_b0", "densenet121",
                "mobilenet_v3_large", "vit_b_16"],
     "kaggle_dataset": "muhammadsajad/periapical-xrays",
@@ -505,15 +506,16 @@ BEST_ARCH, CV_RESULTS = run_model_comparison()
 # ETAPA 5 — OTIMIZAÇÃO DE HIPERPARÂMETROS (Optuna / TPE)
 # ==============================================================================
 def run_hpo(arch):
-    log("=" * 80); log(f"ETAPA 5 — HPO (Optuna/TPE) para {arch}, "
-                       f"{CONFIG['optuna_trials']} trials")
+    log("=" * 80)
+    log(f"ETAPA 5 — HPO (Optuna/TPE) para {arch}: "
+        f"{CONFIG['optuna_trials']} trials, cada um avaliado por CV interna "
+        f"de {CONFIG['hpo_folds']} folds")
     tv_targets = targets[trainval_idx]
-    tr, va = train_test_split(np.arange(len(trainval_idx)), test_size=0.2,
-                              stratify=tv_targets, random_state=CONFIG["seed"])
-    tr_idx, va_idx = trainval_idx[tr], trainval_idx[va]
+    hpo_folds = list(StratifiedKFold(
+        n_splits=CONFIG["hpo_folds"], shuffle=True,
+        random_state=CONFIG["seed"]).split(trainval_idx, tv_targets))
 
     def objective(trial):
-        set_seed(CONFIG["seed"])
         lr = trial.suggest_float("lr", 1e-5, 5e-4, log=True)
         wd = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         dropout = trial.suggest_float("dropout", 0.1, 0.5)
@@ -521,18 +523,25 @@ def run_hpo(arch):
         bs = trial.suggest_categorical("batch_size", [8, 16, 32])
         loss_name = trial.suggest_categorical("loss",
                                               ["weighted_ce", "focal"])
-        model, _ = create_model(arch, dropout=dropout)
-        _, best, _ = train_one(
-            model, make_loader(tr_idx, "train", aug, bs),
-            make_loader(va_idx, "val", batch_size=bs),
-            epochs=15, lr=lr, weight_decay=wd,
-            class_weights=class_weights_from(tr_idx),
-            tag=f"hpo_t{trial.number}", patience=5, log_every_epoch=False,
-            loss_name=loss_name)
-        log(f"[HPO trial {trial.number}] macroF1={best['macro_f1']:.4f} "
+        scores = []
+        for f, (tr, va) in enumerate(hpo_folds):
+            set_seed(CONFIG["seed"] + f)
+            tr_idx, va_idx = trainval_idx[tr], trainval_idx[va]
+            model, _ = create_model(arch, dropout=dropout)
+            _, best, _ = train_one(
+                model, make_loader(tr_idx, "train", aug, bs),
+                make_loader(va_idx, "val", batch_size=bs),
+                epochs=12, lr=lr, weight_decay=wd,
+                class_weights=class_weights_from(tr_idx),
+                tag=f"hpo_t{trial.number}_f{f+1}", patience=4,
+                log_every_epoch=False, loss_name=loss_name)
+            scores.append(best["macro_f1"])
+            del model; torch.cuda.empty_cache()
+        score = float(np.mean(scores))
+        log(f"[HPO trial {trial.number}] macroF1={score:.4f} "
+            f"(folds: {[round(s, 4) for s in scores]}) "
             f"| params={trial.params}")
-        del model; torch.cuda.empty_cache()
-        return best["macro_f1"]
+        return score
 
     study = optuna.create_study(
         direction="maximize",
