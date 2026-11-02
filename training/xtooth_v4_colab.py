@@ -70,7 +70,7 @@ import traceback
 
 # ------------------------------- CONFIGURAÇÃO --------------------------------
 CONFIG = {
-    "version": "4.2.0",
+    "version": "4.3.0",
     "seed": 42,
     "final_seeds": [42, 43, 44],  # sementes do treino final (média ± dp)
     "focal_gamma": 2.0,
@@ -261,24 +261,24 @@ json.dump({"trainval_idx": trainval_idx.tolist(), "test_idx": test_idx.tolist(),
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 def get_transforms(phase, aug_strength=1.0):
-    """Pré-processamento fixo em TODAS as fases: resize + CLAHE.
-    Treino adiciona flip horizontal, rotação leve e brilho/contraste."""
+    """Transformações de treino: flip horizontal, rotação leve,
+    brilho/contraste e CLAHE estocástico. Validação/teste: resize +
+    normalização."""
     if phase == "train":
         s = aug_strength
         return A.Compose([
             A.Resize(CONFIG["image_size"], CONFIG["image_size"]),
-            A.CLAHE(clip_limit=3.0, p=1.0),
             A.HorizontalFlip(p=0.5),
             A.Affine(scale=(1 - 0.1*s, 1 + 0.1*s), rotate=(-10*s, 10*s),
                      translate_percent=(0.0, 0.05*s), p=0.7),
             A.RandomBrightnessContrast(brightness_limit=0.2*s,
                                        contrast_limit=0.2*s, p=0.5),
+            A.CLAHE(clip_limit=3.0, p=0.3),
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ])
     return A.Compose([
         A.Resize(CONFIG["image_size"], CONFIG["image_size"]),
-        A.CLAHE(clip_limit=3.0, p=1.0),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ToTensorV2(),
     ])
