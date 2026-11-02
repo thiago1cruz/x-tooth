@@ -70,8 +70,10 @@ import traceback
 
 # ------------------------------- CONFIGURAÇÃO --------------------------------
 CONFIG = {
-    "version": "4.1.0",
+    "version": "4.2.0",
     "seed": 42,
+    "final_seeds": [42, 43, 44],  # sementes do treino final (média ± dp)
+    "focal_gamma": 2.0,
     "image_size": 224,
     "num_classes": 5,
     "test_fraction": 0.15,          # fração do teste hold-out
@@ -259,23 +261,24 @@ json.dump({"trainval_idx": trainval_idx.tolist(), "test_idx": test_idx.tolist(),
 IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 def get_transforms(phase, aug_strength=1.0):
-    """Transformações de treino: flip horizontal, rotação leve,
-    brilho/contraste e CLAHE. Validação/teste: apenas resize + normalização."""
+    """Pré-processamento fixo em TODAS as fases: resize + CLAHE.
+    Treino adiciona flip horizontal, rotação leve e brilho/contraste."""
     if phase == "train":
         s = aug_strength
         return A.Compose([
             A.Resize(CONFIG["image_size"], CONFIG["image_size"]),
+            A.CLAHE(clip_limit=3.0, p=1.0),
             A.HorizontalFlip(p=0.5),
             A.Affine(scale=(1 - 0.1*s, 1 + 0.1*s), rotate=(-10*s, 10*s),
                      translate_percent=(0.0, 0.05*s), p=0.7),
             A.RandomBrightnessContrast(brightness_limit=0.2*s,
                                        contrast_limit=0.2*s, p=0.5),
-            A.CLAHE(clip_limit=3.0, p=0.3),
             A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
             ToTensorV2(),
         ])
     return A.Compose([
         A.Resize(CONFIG["image_size"], CONFIG["image_size"]),
+        A.CLAHE(clip_limit=3.0, p=1.0),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ToTensorV2(),
     ])
@@ -347,6 +350,24 @@ def create_model(name, dropout=0.3):
 # ==============================================================================
 # TREINO / AVALIAÇÃO (rotina comum a todas as etapas)
 # ==============================================================================
+class FocalLoss(nn.Module):
+    """Focal Loss (Lin et al., 2017) com pesos por classe (alpha)."""
+    def __init__(self, alpha, gamma=2.0):
+        super().__init__()
+        self.alpha, self.gamma = alpha, gamma
+
+    def forward(self, logits, target):
+        ce = nn.functional.cross_entropy(logits, target, weight=self.alpha,
+                                         reduction="none")
+        pt = torch.exp(-ce)
+        return ((1 - pt) ** self.gamma * ce).mean()
+
+def make_criterion(loss_name, class_weights):
+    w = class_weights.to(DEVICE)
+    if loss_name == "focal":
+        return FocalLoss(alpha=w, gamma=CONFIG["focal_gamma"])
+    return nn.CrossEntropyLoss(weight=w)
+
 def evaluate(model, loader, criterion):
     model.eval()
     loss_sum, ys, ps, probs, paths = 0.0, [], [], [], []
@@ -371,10 +392,11 @@ def evaluate(model, loader, criterion):
     }
 
 def train_one(model, train_loader, val_loader, *, epochs, lr, weight_decay,
-              class_weights, tag, patience=None, log_every_epoch=True):
+              class_weights, tag, patience=None, log_every_epoch=True,
+              loss_name="weighted_ce"):
     patience = patience or CONFIG["early_stopping_patience"]
     model = model.to(DEVICE)
-    criterion = nn.CrossEntropyLoss(weight=class_weights.to(DEVICE))
+    criterion = make_criterion(loss_name, class_weights)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr,
                                   weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
@@ -497,13 +519,16 @@ def run_hpo(arch):
         dropout = trial.suggest_float("dropout", 0.1, 0.5)
         aug = trial.suggest_float("aug_strength", 0.5, 1.5)
         bs = trial.suggest_categorical("batch_size", [8, 16, 32])
+        loss_name = trial.suggest_categorical("loss",
+                                              ["weighted_ce", "focal"])
         model, _ = create_model(arch, dropout=dropout)
         _, best, _ = train_one(
             model, make_loader(tr_idx, "train", aug, bs),
             make_loader(va_idx, "val", batch_size=bs),
             epochs=15, lr=lr, weight_decay=wd,
             class_weights=class_weights_from(tr_idx),
-            tag=f"hpo_t{trial.number}", patience=5, log_every_epoch=False)
+            tag=f"hpo_t{trial.number}", patience=5, log_every_epoch=False,
+            loss_name=loss_name)
         log(f"[HPO trial {trial.number}] macroF1={best['macro_f1']:.4f} "
             f"| params={trial.params}")
         del model; torch.cuda.empty_cache()
@@ -528,14 +553,15 @@ BEST_PARAMS = run_hpo(BEST_ARCH)
 # ==============================================================================
 # ETAPA 6 — TREINO FINAL + AVALIAÇÃO ÚNICA NO TESTE ISOLADO
 # ==============================================================================
-def run_final(arch, params):
-    log("=" * 80); log(f"ETAPA 6 — TREINO FINAL ({arch}) e teste hold-out")
-    set_seed(CONFIG["seed"])
+def train_final_once(arch, params, seed):
+    """Treina o modelo final com uma semente e avalia no teste hold-out."""
+    set_seed(seed)
     tv_targets = targets[trainval_idx]
     tr, va = train_test_split(np.arange(len(trainval_idx)), test_size=0.1,
-                              stratify=tv_targets, random_state=CONFIG["seed"])
+                              stratify=tv_targets, random_state=seed)
     tr_idx, va_idx = trainval_idx[tr], trainval_idx[va]
     bs = params.get("batch_size", CONFIG["batch_size"])
+    loss_name = params.get("loss", "weighted_ce")
 
     model, target_layer = create_model(arch, dropout=params.get("dropout", 0.3))
     model, best_val, hist = train_one(
@@ -544,9 +570,53 @@ def run_final(arch, params):
         make_loader(va_idx, "val", batch_size=bs),
         epochs=CONFIG["epochs_final"], lr=params.get("lr", 1e-4),
         weight_decay=params.get("weight_decay", 1e-4),
-        class_weights=class_weights_from(tr_idx), tag=f"{arch}_final",
-        patience=10)
-    pd.DataFrame(hist).to_csv(DIRS["final"] / "final_history.csv", index=False)
+        class_weights=class_weights_from(tr_idx), tag=f"{arch}_final_s{seed}",
+        patience=10, loss_name=loss_name)
+    pd.DataFrame(hist).to_csv(DIRS["final"] / f"final_history_seed{seed}.csv",
+                              index=False)
+
+    criterion = make_criterion(loss_name, class_weights_from(tr_idx))
+    test = evaluate(model, make_loader(test_idx, "test", batch_size=bs),
+                    criterion)
+    log(f"[seed {seed}] TESTE: acc={test['acc']:.4f} | "
+        f"bal_acc={test['balanced_acc']:.4f} | macroF1={test['macro_f1']:.4f}"
+        f" (val macroF1={best_val['macro_f1']:.4f})")
+    return model, target_layer, best_val, test, hist
+
+def run_final(arch, params):
+    log("=" * 80)
+    log(f"ETAPA 6 — TREINO FINAL ({arch}), {len(CONFIG['final_seeds'])} "
+        f"sementes, avaliação no teste hold-out")
+    runs = []
+    for seed in CONFIG["final_seeds"]:
+        m, tl, best_val, test, hist = train_final_once(arch, params, seed)
+        runs.append({"seed": seed, "model": m, "target_layer": tl,
+                     "val_macro_f1": best_val["macro_f1"], "test": test,
+                     "hist": hist})
+        torch.cuda.empty_cache()
+
+    keys = ("acc", "balanced_acc", "macro_f1", "weighted_f1")
+    seeds_summary = {
+        "per_seed": [{"seed": r["seed"], "val_macro_f1": r["val_macro_f1"],
+                      **{k: r["test"][k] for k in keys}} for r in runs],
+        "mean": {k: float(np.mean([r["test"][k] for r in runs]))
+                 for k in keys},
+        "std": {k: float(np.std([r["test"][k] for r in runs])) for k in keys},
+    }
+    json.dump(seeds_summary,
+              open(DIRS["final"] / "test_across_seeds.json", "w"), indent=2)
+    log("TESTE (média entre sementes): " + " | ".join(
+        f"{k}={seeds_summary['mean'][k]:.4f}±{seeds_summary['std'][k]:.4f}"
+        for k in keys))
+
+    # Artefatos gerados a partir da semente com melhor macro-F1 de VALIDAÇÃO
+    # (a seleção nunca usa o conjunto de teste).
+    sel = max(runs, key=lambda r: r["val_macro_f1"])
+    log(f"Semente selecionada para os artefatos: {sel['seed']} "
+        f"(val macroF1={sel['val_macro_f1']:.4f})")
+    model, target_layer = sel["model"], sel["target_layer"]
+    test, hist = sel["test"], sel["hist"]
+    bs = params.get("batch_size", CONFIG["batch_size"])
 
     # Curvas de aprendizado
     h = pd.DataFrame(hist)
@@ -559,12 +629,6 @@ def run_final(arch, params):
     ax[1].set_title("Métricas (validação)"); ax[1].legend()
     plt.tight_layout()
     plt.savefig(DIRS["final"] / "learning_curves.png", dpi=150); plt.close()
-
-    # ---- Avaliação única no conjunto de teste isolado ----
-    criterion = nn.CrossEntropyLoss(weight=class_weights_from(tr_idx).to(DEVICE))
-    test = evaluate(model, make_loader(test_idx, "test", batch_size=bs), criterion)
-    log(f"TESTE (hold-out): acc={test['acc']:.4f} | "
-        f"bal_acc={test['balanced_acc']:.4f} | macroF1={test['macro_f1']:.4f}")
 
     report = classification_report(test["y_true"], test["y_pred"],
                                    target_names=CLASS_NAMES, output_dict=True,
@@ -620,16 +684,16 @@ def run_final(arch, params):
     log(f"Tabela de erros salva ({(~err_df.correct).sum()} erros / "
         f"{len(err_df)} imagens de teste)")
 
-    # Salvar modelo final
+    # Salvar modelo final (da semente selecionada)
     torch.save({"state_dict": model.state_dict(), "arch": arch,
                 "params": params, "classes": CLASS_NAMES,
-                "test_metrics": {k: test[k] for k in
-                                 ("acc", "balanced_acc", "macro_f1",
-                                  "weighted_f1")}},
+                "seed": sel["seed"],
+                "test_metrics": {k: test[k] for k in keys}},
                DIRS["final"] / "final_model.pth")
-    return model, target_layer, test, report
+    return model, target_layer, test, report, seeds_summary
 
-FINAL_MODEL, TARGET_LAYER, TEST_METRICS, REPORT = run_final(BEST_ARCH, BEST_PARAMS)
+(FINAL_MODEL, TARGET_LAYER, TEST_METRICS, REPORT,
+ SEEDS_SUMMARY) = run_final(BEST_ARCH, BEST_PARAMS)
 
 # ==============================================================================
 # ETAPA 7 — EXPLICABILIDADE (Grad-CAM): o que o modelo "olhou"
@@ -706,13 +770,17 @@ FINAL_REPORT = {
                       for r in CV_RESULTS],
     "best_architecture": BEST_ARCH,
     "best_hyperparameters": BEST_PARAMS,
-    "test_metrics": {k: TEST_METRICS[k] for k in
-                     ("acc", "balanced_acc", "macro_f1", "weighted_f1")},
+    "test_across_seeds": SEEDS_SUMMARY,
+    "test_metrics_selected_seed": {k: TEST_METRICS[k] for k in
+                                   ("acc", "balanced_acc", "macro_f1",
+                                    "weighted_f1")},
     "per_class_report": REPORT,
 }
 json.dump(FINAL_REPORT, open(ROOT / "final_report.json", "w"), indent=2)
 log("=" * 80)
-log("RELATÓRIO FINAL:\n" + json.dumps(FINAL_REPORT["test_metrics"], indent=2))
+log("RELATÓRIO FINAL (teste, média±dp entre sementes):\n" +
+    json.dumps({"mean": SEEDS_SUMMARY["mean"],
+                "std": SEEDS_SUMMARY["std"]}, indent=2))
 log(f"Resultados completos em: {ROOT}")
 
 zip_path = shutil.make_archive(f"/content/xtooth_v4_results_{STAMP}", "zip", ROOT)
