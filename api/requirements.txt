@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+torch>=2.1
+torchvision>=0.16
+albumentations>=1.4
+grad-cam>=1.5
+numpy>=1.24
+Pillow>=10.0

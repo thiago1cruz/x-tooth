@@ -1,0 +1,81 @@
+file,true,pred,confidence,correct
+Primary Endodontic  Lesion (40).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.3399,True
+Primary Periodontal Lesion (10).JPG,Primary Periodontal Lesion,True Combined Lesions,0.576,False
+Primary Endo with Secondary Perio (68).JPG,Primary Endo with Secondary Perio,True Combined Lesions,0.4417,False
+Primary Endodontic Lesion (55).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.5757,True
+Primary Endodontic Lesion (27).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.6736,False
+True Combined Lesions (130).JPG,True Combined Lesions,True Combined Lesions,0.8091,True
+Primary Endo with Secondary Perio (69).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.8519,True
+Primary Perio with Secondary Endo (2).JPG,Primary Perio with Secondary Endo,Primary Periodontal Lesion,0.6343,False
+Primary Periodontal Lesion (95).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.4685,False
+Primary Endodontic  Lesion (30).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.6151,False
+True Combined Lesions (11).JPG,True Combined Lesions,Primary Endodontic Lesion,0.4157,False
+Primary Endo with Secondary Perio (36).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.5234,True
+True Combined Lesions (21).JPG,True Combined Lesions,Primary Endo with Secondary Perio,0.783,False
+Primary Periodontal Lesion (21).JPG,Primary Periodontal Lesion,Primary Periodontal Lesion,0.6966,True
+Primary Periodontal Lesion (100).JPG,Primary Periodontal Lesion,Primary Endo with Secondary Perio,0.3711,False
+True Combined Lesions (70).JPG,True Combined Lesions,True Combined Lesions,0.9292,True
+Primary Periodontal Lesion (94).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.4808,False
+True Combined Lesions (116).JPG,True Combined Lesions,True Combined Lesions,0.8448,True
+Primary Periodontal Lesion (47).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.6125,False
+Primary Endodontic  Lesion (16).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.6978,False
+True Combined Lesions (35).JPG,True Combined Lesions,Primary Endodontic Lesion,0.4109,False
+Primary Perio with Secondary Endo (18).JPG,Primary Perio with Secondary Endo,Primary Endo with Secondary Perio,0.632,False
+True Combined Lesions (5).JPG,True Combined Lesions,Primary Endodontic Lesion,0.5185,False
+Primary Periodontal Lesion (113).JPG,Primary Periodontal Lesion,Primary Endo with Secondary Perio,0.3437,False
+Primary Endodontic Lesion (18).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.5282,True
+True Combined Lesions (110).JPG,True Combined Lesions,True Combined Lesions,0.631,True
+Primary Endodontic Lesion (51).JPG,Primary Endodontic Lesion,Primary Perio with Secondary Endo,0.4152,False
+True Combined Lesions (105).JPG,True Combined Lesions,True Combined Lesions,0.9453,True
+Primary Endodontic Lesion (28).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.333,True
+Primary Endodontic  Lesion (14).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.61,False
+Primary Periodontal Lesion (11).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.5216,False
+Primary Periodontal Lesion (82).JPG,Primary Periodontal Lesion,Primary Periodontal Lesion,0.6944,True
+Primary Endodontic  Lesion (47).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.7267,True
+Primary Endodontic  Lesion (35).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.5593,False
+Primary Endodontic Lesion (9).JPG,Primary Endodontic Lesion,True Combined Lesions,0.4671,False
+Primary Endodontic Lesion.JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.4865,True
+Primary Endo with Secondary Perio (73).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.4142,True
+True Combined Lesions (64).JPG,True Combined Lesions,True Combined Lesions,0.6875,True
+Primary Perio with Secondary Endo (24).JPG,Primary Perio with Secondary Endo,Primary Endodontic Lesion,0.417,False
+Primary Endo with Secondary Perio (82).JPG,Primary Endo with Secondary Perio,True Combined Lesions,0.4864,False
+Primary Endo with Secondary Perio.JPG,Primary Endo with Secondary Perio,Primary Endodontic Lesion,0.627,False
+True Combined Lesions (6).JPG,True Combined Lesions,Primary Endodontic Lesion,0.5072,False
+True Combined Lesions (112).JPG,True Combined Lesions,True Combined Lesions,0.9235,True
+True Combined Lesions (32).JPG,True Combined Lesions,True Combined Lesions,0.918,True
+Primary Periodontal Lesion (107).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.4503,False
+Primary Perio with Secondary Endo (4).JPG,Primary Perio with Secondary Endo,Primary Endo with Secondary Perio,0.7943,False
+Primary Periodontal Lesion (74).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.328,False
+Primary Endo with Secondary Perio (120).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.3441,True
+True Combined Lesions (91).JPG,True Combined Lesions,True Combined Lesions,0.9665,True
+Primary Periodontal Lesion (36).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.6799,False
+Primary Endodontic  Lesion (53).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.536,True
+True Combined Lesions (104).JPG,True Combined Lesions,True Combined Lesions,0.9567,True
+Primary Endo with Secondary Perio (118).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.5013,True
+Primary Periodontal Lesion (26).JPG,Primary Periodontal Lesion,Primary Perio with Secondary Endo,0.4347,False
+Primary Endo with Secondary Perio (57).JPG,Primary Endo with Secondary Perio,Primary Periodontal Lesion,0.3754,False
+Primary Endodontic Lesion (58).JPG,Primary Endodontic Lesion,Primary Endo with Secondary Perio,0.5026,False
+Primary Endo with Secondary Perio (8).JPG,Primary Endo with Secondary Perio,Primary Endodontic Lesion,0.798,False
+Primary Periodontal Lesion (65).JPG,Primary Periodontal Lesion,Primary Periodontal Lesion,0.6255,True
+Primary Endo with Secondary Perio (90).JPG,Primary Endo with Secondary Perio,Primary Perio with Secondary Endo,0.587,False
+Primary Endodontic  Lesion (4).JPG,Primary Endodontic Lesion,Primary Endo with Secondary Perio,0.321,False
+Primary Endo with Secondary Perio (44).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.6059,True
+True Combined Lesions (111).JPG,True Combined Lesions,True Combined Lesions,0.8769,True
+Primary Perio with Secondary Endo (9).JPG,Primary Perio with Secondary Endo,Primary Endodontic Lesion,0.3837,False
+Primary Perio with Secondary Endo (15).JPG,Primary Perio with Secondary Endo,Primary Perio with Secondary Endo,0.7503,True
+True Combined Lesions (85).JPG,True Combined Lesions,True Combined Lesions,0.9441,True
+Primary Endo with Secondary Perio (112).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.7274,True
+Primary Endo with Secondary Perio (101).JPG,Primary Endo with Secondary Perio,Primary Endodontic Lesion,0.3598,False
+Primary Periodontal Lesion (88).JPG,Primary Periodontal Lesion,Primary Endodontic Lesion,0.463,False
+Primary Endo with Secondary Perio (54).JPG,Primary Endo with Secondary Perio,Primary Endodontic Lesion,0.4461,False
+Primary Endodontic Lesion (41).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.7452,False
+Primary Endodontic  Lesion (43).JPG,Primary Endodontic Lesion,Primary Periodontal Lesion,0.4968,False
+True Combined Lesions (80).JPG,True Combined Lesions,True Combined Lesions,0.6497,True
+True Combined Lesions (26).JPG,True Combined Lesions,Primary Endodontic Lesion,0.5301,False
+True Combined Lesions (4).JPG,True Combined Lesions,Primary Endodontic Lesion,0.5654,False
+Primary Endo with Secondary Perio (9).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.5058,True
+Primary Periodontal Lesion (93).JPG,Primary Periodontal Lesion,Primary Endo with Secondary Perio,0.4559,False
+Primary Periodontal Lesion (116).JPG,Primary Periodontal Lesion,Primary Perio with Secondary Endo,0.36,False
+Primary Periodontal Lesion (55).JPG,Primary Periodontal Lesion,Primary Periodontal Lesion,0.499,True
+Primary Endodontic  Lesion (20).JPG,Primary Endodontic Lesion,Primary Endodontic Lesion,0.598,True
+Primary Endo with Secondary Perio (64).JPG,Primary Endo with Secondary Perio,Primary Endo with Secondary Perio,0.623,True
