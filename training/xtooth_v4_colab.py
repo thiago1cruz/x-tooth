@@ -65,10 +65,12 @@ from sklearn.preprocessing import label_binarize
 import optuna
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+import traceback
 
 # ------------------------------- CONFIGURAÇÃO --------------------------------
 CONFIG = {
-    "version": "4.0.0",
+    "version": "4.1.0",
     "seed": 42,
     "image_size": 224,
     "num_classes": 5,
@@ -113,8 +115,13 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     handlers=[logging.FileHandler(DIRS["logs"] / "run.log"),
               logging.StreamHandler(sys.stdout)],
+    force=True,  # substitui handlers pré-existentes do runtime (Colab/Jupyter)
 )
 log = logging.getLogger("xtooth").info
+log("=" * 70)
+log("LOGGING ATIVO — se você está vendo esta linha, a saída e o run.log "
+    "estão funcionando.")
+log("=" * 70)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -176,8 +183,9 @@ def build_data_dictionary(data_dir):
                     mode = im.mode
                 arr = np.array(Image.open(img_path).convert("L"))
                 rows.append({
-                    "file": img_path.name, "class": cls, "width": w, "height": h,
-                    "mode": mode, "mean_intensity": float(arr.mean()),
+                    "file": img_path.name, "path": str(img_path), "class": cls,
+                    "width": w, "height": h, "mode": mode,
+                    "mean_intensity": float(arr.mean()),
                     "std_intensity": float(arr.std()),
                     "md5": hashlib.md5(img_path.read_bytes()).hexdigest(),
                 })
@@ -212,10 +220,31 @@ def build_data_dictionary(data_dir):
 DATA_DF, DATA_SUMMARY = build_data_dictionary(DATA_DIR)
 
 # ==============================================================================
-# ETAPA 3 — PARTIÇÃO ESTRATIFICADA (teste isolado) + TRANSFORMAÇÕES
+# ETAPA 3 — DEDUPLICAÇÃO + PARTIÇÃO ESTRATIFICADA (teste isolado)
 # ==============================================================================
 base_dataset = ImageFolder(root=DATA_DIR)
 CLASS_NAMES = base_dataset.classes
+
+# Remoção de imagens duplicadas (mesmo MD5), mantendo a primeira ocorrência.
+md5_by_path = dict(zip(DATA_DF["path"], DATA_DF["md5"]))
+seen, kept, removed = set(), [], []
+for path, label in base_dataset.samples:
+    h = md5_by_path.get(path, path)
+    if h in seen:
+        removed.append({"path": path, "class": CLASS_NAMES[label], "md5": h})
+        continue
+    seen.add(h)
+    kept.append((path, label))
+base_dataset.samples = kept
+base_dataset.imgs = kept
+base_dataset.targets = [t for _, t in kept]
+json.dump(removed, open(DIRS["data_dictionary"] / "removed_duplicates.json",
+                        "w"), indent=2)
+log(f"Deduplicação: {len(removed)} imagens duplicadas removidas | "
+    f"{len(kept)} imagens únicas restantes")
+for r in removed:
+    log(f"  removida: {os.path.basename(r['path'])} ({r['class']})")
+
 targets = np.array([t for _, t in base_dataset.samples])
 indices = np.arange(len(base_dataset))
 
@@ -617,36 +646,52 @@ def run_gradcam(model, target_layer, n_per_class=3):
     else:
         cam = GradCAM(model=model, target_layers=[target_layer])
 
+    model.eval()
     tfm = get_transforms("test")
     picked = {c: 0 for c in range(CONFIG["num_classes"])}
+    saved, failed = 0, 0
     for idx in test_idx:
         path, label = base_dataset.samples[idx]
         if picked[label] >= n_per_class:
             continue
-        raw = np.array(Image.open(path).convert("RGB"))
-        inp = tfm(image=raw)["image"].unsqueeze(0).to(DEVICE)
-        with torch.no_grad():
-            pred = int(model(inp).argmax(1))
-        gray = cam(input_tensor=inp)[0]
-        vis_base = A.Resize(CONFIG["image_size"], CONFIG["image_size"])(
-            image=raw)["image"] / 255.0
-        vis = show_cam_on_image(vis_base.astype(np.float32), gray, use_rgb=True)
-        ok = "OK" if pred == label else "ERRO"
-        fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-        ax[0].imshow(vis_base); ax[0].set_title("Radiografia"); ax[0].axis("off")
-        ax[1].imshow(vis); ax[1].axis("off")
-        ax[1].set_title(f"Grad-CAM | real: {CLASS_NAMES[label]}\n"
-                        f"pred: {CLASS_NAMES[pred]} [{ok}]", fontsize=8)
-        plt.tight_layout()
-        fname = f"{CLASS_NAMES[label].replace(' ', '_')}_{picked[label]}_{ok}.png"
-        plt.savefig(DIRS["gradcam"] / fname, dpi=150); plt.close()
-        picked[label] += 1
-    log(f"Grad-CAM salvo em {DIRS['gradcam']}")
+        try:
+            raw = np.array(Image.open(path).convert("RGB"))
+            inp = tfm(image=raw)["image"].unsqueeze(0).to(DEVICE)
+            with torch.no_grad():
+                pred = int(model(inp).argmax(1))
+            gray = cam(input_tensor=inp,
+                       targets=[ClassifierOutputTarget(pred)])[0]
+            vis_base = A.Resize(CONFIG["image_size"], CONFIG["image_size"])(
+                image=raw)["image"] / 255.0
+            vis = show_cam_on_image(vis_base.astype(np.float32), gray,
+                                    use_rgb=True)
+            ok = "OK" if pred == label else "ERRO"
+            fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+            ax[0].imshow(vis_base); ax[0].set_title("Radiografia")
+            ax[0].axis("off")
+            ax[1].imshow(vis); ax[1].axis("off")
+            ax[1].set_title(f"Grad-CAM | real: {CLASS_NAMES[label]}\n"
+                            f"pred: {CLASS_NAMES[pred]} [{ok}]", fontsize=8)
+            plt.tight_layout()
+            fname = (f"{CLASS_NAMES[label].replace(' ', '_')}"
+                     f"_{picked[label]}_{ok}.png")
+            plt.savefig(DIRS["gradcam"] / fname, dpi=150); plt.close()
+            picked[label] += 1; saved += 1
+        except Exception:
+            failed += 1
+            log(f"Grad-CAM falhou em {os.path.basename(path)}:\n"
+                f"{traceback.format_exc()}")
+            plt.close("all")
+            if failed >= 3 and saved == 0:
+                log("Grad-CAM abortado após 3 falhas consecutivas.")
+                break
+    log(f"Grad-CAM: {saved} imagens salvas, {failed} falhas "
+        f"— em {DIRS['gradcam']}")
 
 try:
     run_gradcam(FINAL_MODEL, TARGET_LAYER)
-except Exception as e:
-    log(f"AVISO: Grad-CAM falhou ({e}); prossiga, demais resultados estão salvos.")
+except Exception:
+    log("AVISO: Grad-CAM falhou:\n" + traceback.format_exc())
 
 # ==============================================================================
 # RELATÓRIO FINAL + EMPACOTAMENTO
