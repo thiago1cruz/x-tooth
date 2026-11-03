@@ -58,13 +58,16 @@ class _SplashPageState extends State<SplashPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.medical_information_outlined,
-              size: 64, color: Colors.white),
+          child: Image.asset(
+            'assets/images/tooth_white.png',
+            width: 72,
+            height: 72,
+          ),
         ),
         const SizedBox(height: 24),
         const Text(
